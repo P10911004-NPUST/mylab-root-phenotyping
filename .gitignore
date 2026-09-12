@@ -1,3 +1,23 @@
+# Files
+*.exe
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+*.pdf
+
+# Images
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.gif
+*.bmp
+*.czi
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
