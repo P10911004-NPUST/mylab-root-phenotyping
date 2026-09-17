@@ -39,17 +39,16 @@ def scale_min_max(arr: np.ndarray, range=(0, 1)):
     return arr
 
 def convert_to_uint8(arr: np.ndarray):
-    if arr.ndim == 2:
+    if arr.ndim < 2:
+        return(np.uint8(scale_min_max(arr)))
+    elif arr.ndim >= 2:
         arr = scale_min_max(arr)
         arr = np.uint8(arr * 255)
         return arr
-    if arr.ndim == 3:
+    else:
         out = np.empty_like(arr, dtype=np.uint8)
         for c in range(arr.shape[-1]):
             out[..., c] = convert_to_uint8(arr[..., c])
-        # arr[:, :, 0] = convert_to_uint8(arr[:, :, 0])
-        # arr[:, :, 1] = convert_to_uint8(arr[:, :, 1])
-        # arr[:, :, 2] = convert_to_uint8(arr[:, :, 2])
         return out
 
 def gray_to_lut(arr: np.ndarray) -> np.ndarray:

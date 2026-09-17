@@ -2,6 +2,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
+import skimage as sk
+from skimage import filters as sk_filters
 
 from utils import *
 from read_image import *
@@ -35,16 +37,14 @@ def BES_H2O2_Ac(czi_path: str, input_folder_path:str | None = None):
         TPMT = np.bitwise_invert(TPMT)
         TPMT, mask = extract_root_region(TPMT)
         BES = np.multiply(BES, mask)
-        fg = np.double(BES > 0)
+        fg = BES > sk.filters.threshold_otsu(BES)
         bg = TPMT * (1.0 - fg)
-        R = bg
-        G = bg + (fg * 255.0)
-        B = bg
+        R = convert_to_uint8(bg)
+        G = convert_to_uint8(bg + (fg * 255.0))
+        B = convert_to_uint8(bg)
         RGB = np.stack([R, G, B], axis=2)
-        # RGB = convert_to_uint8(RGB)
         pseudo_folder_path = os.path.join(output_folder_path, "BES_pseudo")
         pseudo_img_path = czi_path.replace(input_folder_path, pseudo_folder_path)
-        return RGB
         export_tiff(RGB, pseudo_img_path, img.tiff_info)
 
     if BES.max() == 0:
@@ -94,14 +94,10 @@ def BES_H2O2_Ac_multproc(input_folder_path: str, use_cores: int = 3):
     df.to_csv(csv_output_path, index=False)
 
 
-RGB = BES_H2O2_Ac("../test/BES-H2O2-Ac/osrgf1-7_100pM_DAT07_Se_R02_20260826_DAI07.czi", "../test/BES-H2O2-Ac")
+if __name__ == "__main__":
+    input_folder_path = "../test/BES-H2O2-Ac"
 
-convert_to_uint8(RGB)
+    input_folder_path = Path(input_folder_path).resolve().as_posix()
+    img_list = get_img_list(input_folder_path)[1:3]
 
-# if __name__ == "__main__":
-#     input_folder_path = "../test/BES-H2O2-Ac"
-
-#     input_folder_path = Path(input_folder_path).resolve().as_posix()
-#     img_list = get_img_list(input_folder_path)[1:3]
-
-#     out = BES_H2O2_Ac_multproc(input_folder_path, use_cores)
+    out = BES_H2O2_Ac_multproc(input_folder_path, use_cores)
