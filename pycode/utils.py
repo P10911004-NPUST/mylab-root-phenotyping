@@ -42,11 +42,15 @@ def convert_to_uint8(arr: np.ndarray):
     if arr.ndim == 2:
         arr = scale_min_max(arr)
         arr = np.uint8(arr * 255)
+        return arr
     if arr.ndim == 3:
-        arr[:, :, 0] = convert_to_uint8(arr[:, :, 0])
-        arr[:, :, 1] = convert_to_uint8(arr[:, :, 1])
-        arr[:, :, 2] = convert_to_uint8(arr[:, :, 2])
-    return arr
+        out = np.empty_like(arr, dtype=np.uint8)
+        for c in range(arr.shape[-1]):
+            out[..., c] = convert_to_uint8(arr[..., c])
+        # arr[:, :, 0] = convert_to_uint8(arr[:, :, 0])
+        # arr[:, :, 1] = convert_to_uint8(arr[:, :, 1])
+        # arr[:, :, 2] = convert_to_uint8(arr[:, :, 2])
+        return out
 
 def gray_to_lut(arr: np.ndarray) -> np.ndarray:
     lut = np.zeros((256, 3), dtype=np.uint8)
@@ -70,7 +74,10 @@ def imshow(img: np.ndarray | Image.Image):
 
 def export_tiff(img: np.ndarray | Image.Image, img_path: str, tiff_info: None):
     if isinstance(img, np.ndarray):
-        img = Image.fromarray(img)
+        if img.ndim == 3:
+            img = Image.fromarray(img, mode="RGB")
+        else:
+            img = Image.fromarray(img)
     if not isinstance(tiff_info, TiffImagePlugin.ImageFileDirectory_v2):
         tiff_info = TiffImagePlugin.ImageFileDirectory_v2()
     path = Path(img_path).resolve()

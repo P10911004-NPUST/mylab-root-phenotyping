@@ -9,13 +9,12 @@ from read_image import *
 DATE_TIME = datetime.now().strftime("%Y%m%d-%H%M%S")
 use_cores = max(1, mp.cpu_count() - 2)
 
-def BES_H2O2_Ac(czi_path: str, input_folder_path:str | None = None):
-    czi_path = Path(czi_path).resolve().as_posix()
+def EdU(czi_path: str, input_folder_path:str | None = None):
     img = ReadImage(czi_path)
     height = img.sizes.get("Y")
     width = img.sizes.get("X")
     mpp = round(img.scenes.mpp[0], 2) # micrometer per pixel
-    BES, TPMT = img.get_BES_arr()
+    EdU, TPMT = img.get_BES_arr() # The BES and EdU procedure is similar
 
     if input_folder_path is None:
         input_folder_path = Path(czi_path).resolve().parent.as_posix()
@@ -24,9 +23,11 @@ def BES_H2O2_Ac(czi_path: str, input_folder_path:str | None = None):
 
     output_folder_path = create_output_folder(input_folder_path, True)
 
-    BES_folder_path = os.path.join(output_folder_path, "BES")
-    BES_img_path = czi_path.replace(input_folder_path, BES_folder_path)
-    export_tiff(BES, BES_img_path, img.tiff_info)
+    EdU_folder_path = os.path.join(output_folder_path, "EdU")
+    EdU_img_path = czi_path.replace(input_folder_path, EdU_folder_path)
+    zero_arr = np.zeros((height, width), dtype=np.uint8)
+    EdU_RGB = np.stack([zero_arr, EdU, zero_arr], axis=2)
+    export_tiff(EdU_RGB, EdU_img_path, img.tiff_info)
         
     if TPMT is not None:
         TPMT_folder_path = os.path.join(output_folder_path, "T-PMT")
@@ -34,27 +35,16 @@ def BES_H2O2_Ac(czi_path: str, input_folder_path:str | None = None):
         export_tiff(TPMT, TPMT_img_path, img.tiff_info)
         TPMT = np.bitwise_invert(TPMT)
         TPMT, mask = extract_root_region(TPMT)
-        BES = np.multiply(BES, mask)
-        fg = np.double(BES > 0)
-        bg = TPMT * (1.0 - fg)
-        R = bg
-        G = bg + (fg * 255.0)
-        B = bg
-        RGB = np.stack([R, G, B], axis=2)
-        # RGB = convert_to_uint8(RGB)
-        pseudo_folder_path = os.path.join(output_folder_path, "BES_pseudo")
-        pseudo_img_path = czi_path.replace(input_folder_path, pseudo_folder_path)
-        return RGB
-        export_tiff(RGB, pseudo_img_path, img.tiff_info)
+        EdU = np.multiply(EdU, mask)
 
-    if BES.max() == 0:
-        bes_total = 0
-        bes_area = 0
-        bes_mean = 0
+    if EdU.max() == 0:
+        edu_total = 0
+        edu_area = 0
+        edu_mean = 0
     else:
-        bes_total = BES.sum()
-        bes_area = np.sum(BES > 0)
-        bes_mean = round(bes_total / bes_area, 4)
+        edu_total = EdU.sum()
+        edu_area = np.sum(EdU > 0)
+        edu_mean = round(edu_total / edu_area, 4)
 
     return {
         "img_dirname": img.img_path.parent.as_posix(),
@@ -64,15 +54,15 @@ def BES_H2O2_Ac(czi_path: str, input_folder_path:str | None = None):
         "img_size_pixels": f"{height} x {width}",
         "img_size_um": f"{height * mpp} x {width * mpp}",
         "resolution (um/pixel)": mpp,
-        "BES_area": bes_area,
-        "BES_mean": bes_mean,
-        "BES_total": bes_total,
+        "BES_area": edu_area,
+        "BES_mean": edu_mean,
+        "BES_total": edu_total,
         "distance_pixels": -999,
         "note": "ok"
     }
 
 
-def BES_H2O2_Ac_multproc(input_folder_path: str, use_cores: int = 3):
+def EdU_multproc(input_folder_path: str, use_cores: int = 3):
     input_folder_path = Path(input_folder_path).resolve().as_posix()
     img_list = get_img_list(input_folder_path, suffix=".czi")
     img_num = len(img_list)
@@ -80,28 +70,24 @@ def BES_H2O2_Ac_multproc(input_folder_path: str, use_cores: int = 3):
     if img_num < 10 or use_cores < 3:
         csv_output = []
         for img in img_list:
-            csv_output.append(BES_H2O2_Ac(img, input_folder_path))
+            csv_output.append(EdU(img, input_folder_path))
     else:
         tasks = [(img, input_folder_path) for img in img_list]
         pool = mp.Pool(use_cores)
-        csv_output = pool.starmap(BES_H2O2_Ac, tasks)
+        csv_output = pool.starmap(EdU, tasks)
         pool.close()
         pool.join()
     
     output_folder = create_output_folder(input_folder_path, mkdir=False)
-    csv_output_path = Path(output_folder) / f"OUT_BES-H2O2-Ac_{DATE_TIME}.csv"
+    csv_output_path = Path(output_folder) / f"OUT_EdU_{DATE_TIME}.csv"
     df = pd.DataFrame.from_dict(csv_output)
     df.to_csv(csv_output_path, index=False)
 
 
-RGB = BES_H2O2_Ac("../test/BES-H2O2-Ac/osrgf1-7_100pM_DAT07_Se_R02_20260826_DAI07.czi", "../test/BES-H2O2-Ac")
-
-convert_to_uint8(RGB)
-
 # if __name__ == "__main__":
-#     input_folder_path = "../test/BES-H2O2-Ac"
+#     input_folder_path = "../test/EdU"
 
 #     input_folder_path = Path(input_folder_path).resolve().as_posix()
 #     img_list = get_img_list(input_folder_path)[1:3]
 
-#     out = BES_H2O2_Ac_multproc(input_folder_path, use_cores)
+#     out = EdU_multproc(input_folder_path, use_cores)

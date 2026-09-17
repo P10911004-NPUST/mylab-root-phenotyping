@@ -1,21 +1,13 @@
+from datetime import datetime
 import numpy as np
-import skimage as sk
-# Explicitly import the module for pyinstaller
-# Don't know why pyinstaller failed to bundle them otherwise
-from skimage import filters as sk_filters
-from skimage import transform as sk_transform
+import pandas as pd
+import multiprocessing as mp
 
-from read_image import *
 from utils import *
+from read_image import *
 
-# def extract_root_region(arr: np.ndarray, kernel_size: int = 3):
-#     # Background must be black, target must be white
-#     kernel = sk.morphology.disk(kernel_size)
-#     mask = convert_to_uint8(arr)
-#     mask = sk_filters.rank.median(mask, kernel)
-#     mask = mask > sk_filters.threshold_otsu(mask)
-#     root_arr = np.multiply(arr, mask)
-#     return root_arr, mask
+DATE_TIME = datetime.now().strftime("%Y%m%d-%H%M%S")
+use_cores = max(1, mp.cpu_count() - 2)
 
 def percentile_filter(arr: np.ndarray, perc: tuple = (0, 99)):
     # Discard saturated pixels, especially the root cap
@@ -29,6 +21,7 @@ def percentile_filter(arr: np.ndarray, perc: tuple = (0, 99)):
         arr[raw_arr < lower_threshold] = bg_val
         arr[raw_arr > upper_threshold] = bg_val
     return arr
+
 
 def calc_RO_index(E405, E488):
     e405, e405_mask = extract_root_region(E405)
@@ -52,35 +45,93 @@ def calc_RO_index(E405, E488):
 
 def RO_index(czi_path: str, input_folder_path: str | None = None):
     img = ReadImage(czi_path)
-    E405, E488, PI = img.get_RO_related_arr()
-    RO = calc_RO_index(E405, E488)
-    LUT = gray_to_lut(RO)
-    
-    if input_folder_path is None:
-        # input_folder_path = os.path.dirname(czi_path)
-        input_folder_path = Path(czi_path).resolve().parent.as_posix()
-    else:
-        input_folder_path = Path(input_folder_path).resolve().as_posix()
+    try:
+        height = img.sizes.get("Y")
+        width = img.sizes.get("X")
+        mpp = round(img.scenes.mpp[0], 2) # micrometer per pixel
+        E405, E488, PI = img.get_RO_related_arr()
+        RO = calc_RO_index(E405, E488)
+        LUT = gray_to_lut(RO)
+        
+        if input_folder_path is None:
+            input_folder_path = Path(czi_path).resolve().parent.as_posix()
+        else:
+            input_folder_path = Path(input_folder_path).resolve().as_posix()
 
-    output_folder_path = create_output_folder(input_folder_path, True)
-    # E405: Oxidized-state protein signal
-    E405_folder_path = os.path.join(output_folder_path, "405 nm")
-    E405_img_path = czi_path.replace(input_folder_path, E405_folder_path)
-    export_tiff(E405, E405_img_path, img.tiff_info)
-    # 488 nm -> Reduced-state protein signal
-    E488_folder_path = os.path.join(output_folder_path, "488 nm")
-    E488_img_path = czi_path.replace(input_folder_path, E488_folder_path)
-    export_tiff(E488, E488_img_path, img.tiff_info)
-    # Propidium Iodide stain
-    if PI is not None:
-        PI_folder_path = os.path.join(output_folder_path, "PI")
-        PI_img_path = czi_path.replace(input_folder_path, PI_folder_path)
-        export_tiff(PI, PI_img_path, img.tiff_info)
-    # Reduced-Oxidized index
-    RO_folder_path = os.path.join(output_folder_path, "RO")
-    RO_img_path = czi_path.replace(input_folder_path, RO_folder_path)
-    export_tiff(RO, RO_img_path, img.tiff_info)
-    # Look-up-table pseudo-image
-    LUT_folder_path = os.path.join(output_folder_path, "LUT")
-    LUT_img_path = czi_path.replace(input_folder_path, LUT_folder_path)
-    export_tiff(LUT, LUT_img_path, img.tiff_info)
+        output_folder_path = create_output_folder(input_folder_path, True)
+        # E405: Oxidized-state protein signal
+        E405_folder_path = os.path.join(output_folder_path, "405 nm")
+        E405_img_path = czi_path.replace(input_folder_path, E405_folder_path)
+        export_tiff(E405, E405_img_path, img.tiff_info)
+        # 488 nm -> Reduced-state protein signal
+        E488_folder_path = os.path.join(output_folder_path, "488 nm")
+        E488_img_path = czi_path.replace(input_folder_path, E488_folder_path)
+        export_tiff(E488, E488_img_path, img.tiff_info)
+        # Propidium Iodide stain
+        if PI is not None:
+            PI_folder_path = os.path.join(output_folder_path, "PI")
+            PI_img_path = czi_path.replace(input_folder_path, PI_folder_path)
+            export_tiff(PI, PI_img_path, img.tiff_info)
+        # Reduced-Oxidized index
+        RO_folder_path = os.path.join(output_folder_path, "RO")
+        RO_img_path = czi_path.replace(input_folder_path, RO_folder_path)
+        export_tiff(RO, RO_img_path, img.tiff_info)
+        # Look-up-table pseudo-image
+        LUT_folder_path = os.path.join(output_folder_path, "LUT")
+        LUT_img_path = czi_path.replace(input_folder_path, LUT_folder_path)
+        export_tiff(LUT, LUT_img_path, img.tiff_info)
+
+        return {
+            "img_dirname": img.img_path.parent.as_posix(),
+            "img_basename": img.img_path.name,
+            "channels": img.sizes.get("C"),
+            "Zstacks": img.sizes.get("Z"),
+            "img_size_pixels": f"{height} x {width}",
+            "img_size_um": f"{height * mpp} x {width * mpp}",
+            "resolution (um/pixel)": mpp,
+            "note": "ok"
+        }
+    except ValueError as err:
+        print(err)
+        return {
+            "img_dirname": img.img_path.parent.as_posix(),
+            "img_basename": img.img_path.name,
+            "channels": -999,
+            "Zstacks": -999,
+            "img_size_pixels": -999,
+            "img_size_um": -999,
+            "resolution (um/pixel)": -999,
+            "note": "failed"
+        }
+
+
+def RO_index_multproc(input_folder_path: str, use_cores: int = 3):
+    input_folder_path = Path(input_folder_path).resolve().as_posix()
+    img_list = get_img_list(input_folder_path, suffix=".czi")
+    img_num = len(img_list)
+    use_cores = min(img_num, use_cores)
+    if img_num < 10 or use_cores < 3:
+        csv_output = []
+        for img in img_list:
+            # the output will be a list of dictionaries
+            csv_output.append(RO_index(img, input_folder_path))
+    else:
+        tasks = [(img, input_folder_path) for img in img_list]
+        pool = mp.Pool(use_cores)
+        # the output is a list of dictionaries
+        csv_output = pool.starmap(RO_index, tasks)
+        pool.close()
+        pool.join()
+
+    output_folder = create_output_folder(input_folder_path, mkdir=False)
+    csv_output_path = Path(output_folder) / f"OUT_RO-index_{DATE_TIME}.csv"
+    df = pd.DataFrame.from_dict(csv_output)
+    df.to_csv(csv_output_path, index=False)
+
+# if __name__ == "__main__":
+#     input_folder_path = "../test/RO-index"
+
+#     input_folder_path = Path(input_folder_path).resolve().as_posix()
+#     img_list = get_img_list(input_folder_path)
+
+#     out = RO_index_multproc(input_folder_path, use_cores)

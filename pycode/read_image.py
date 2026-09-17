@@ -130,8 +130,8 @@ class ReadImage:
             arr = np.max(arr, axis=self.dims.index("Z"), keepdims=True)
         if self.sizes.get("S") > 1:
             arr = np.max(arr, axis=self.dims.index("S"), keepdims=True)
-        E405 = convert_to_uint8(arr[0, 0, E405_idx, 0, :, :, 0])
-        E488 = convert_to_uint8(arr[0, 0, E488_idx, 0, :, :, 0])
+        E405 = arr[0, 0, E405_idx, 0, :, :, 0]
+        E488 = arr[0, 0, E488_idx, 0, :, :, 0]
         PI = None
         if self.sizes.get("C") > 2:
             PI = convert_to_uint8(arr[0, 0, PI_idx, 0, :, :, 0])
