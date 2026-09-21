@@ -18,16 +18,16 @@ def create_output_folder(input_folder_path: str, mkdir: bool = False):
         raise ValueError(f"Input must be an existing folder: {input_folder_path}")
     new_path = path.with_name("OUT_" + path.name)
     if mkdir and not new_path.exists():
-        print(f"Create directory: {new_path}")
         new_path.mkdir(parents=True, exist_ok=True)
+        print(f"Create directory: {new_path.as_posix()}")
     return new_path.as_posix()
 
 def get_img_list(input_folder_path:str, suffix: str | None = ".czi"):
     path = Path(input_folder_path).resolve().rglob("*")
     if suffix is None:
         suffix = IMG_TYPE
-    img_list = [i for i in path if i.is_file() and i.suffix.lower() in suffix]
-    img_list = [str(i).replace("\\", "/") for i in img_list]
+    img_list = [i.as_posix() for i in path if i.is_file() and i.suffix.lower() in suffix]
+    # img_list = [str(i).replace("\\", "/") for i in img_list]
     return img_list
 
 def scale_min_max(arr: np.ndarray, range=(0, 1)):
@@ -41,14 +41,20 @@ def scale_min_max(arr: np.ndarray, range=(0, 1)):
 def convert_to_uint8(arr: np.ndarray):
     if arr.ndim < 2:
         return(np.uint8(scale_min_max(arr)))
-    elif arr.ndim >= 2:
-        arr = scale_min_max(arr)
-        arr = np.uint8(arr * 255)
+    elif arr.ndim == 2:
+        arr = scale_min_max(arr) * 255.0
+        arr = np.uint8(arr)
         return arr
     else:
+        arr = arr.astype(np.double)
+        gmin = arr.min()
+        gmax = arr.max()
         out = np.empty_like(arr, dtype=np.uint8)
         for c in range(arr.shape[-1]):
-            out[..., c] = convert_to_uint8(arr[..., c])
+            tmp_arr = arr[..., c]
+            tmp_arr = (tmp_arr - gmin) / (gmax - gmin)
+            out[..., c] = np.uint8(tmp_arr * 255.0)
+            # out[..., c] = convert_to_uint8(arr[..., c])
         return out
 
 def gray_to_lut(arr: np.ndarray) -> np.ndarray:
@@ -73,6 +79,8 @@ def imshow(img: np.ndarray | Image.Image):
 
 def export_tiff(img: np.ndarray | Image.Image, img_path: str, tiff_info: None):
     if isinstance(img, np.ndarray):
+        if img.dtype is not np.uint8:
+            img = convert_to_uint8(img)
         if img.ndim == 3:
             img = Image.fromarray(img, mode="RGB")
         else:
@@ -86,6 +94,9 @@ def export_tiff(img: np.ndarray | Image.Image, img_path: str, tiff_info: None):
     tiff_path = os.path.join(str(path.parent), basename)
     tiff_path = Path(tiff_path).as_posix()
     print(f"Export TIFF to: {tiff_path}")
+    if len(img.getbands()) < 3:
+        tiff_info[262] = 1 # PhotometricInterpretation, 1 means zero is black, 255 is white
+        tiff_info[277] = 1 # SamplesPerPixel, 3 for RGB, 4 for RGBA
     img.save(tiff_path, format="tiff", tiffinfo=tiff_info)
 
 def extract_root_region(arr: np.ndarray, kernel_size: int = 3):

@@ -1,9 +1,11 @@
+from utils import convert_to_uint8
 from utils import *
 
 class ReadImage:
     def __init__(self, img_path: str):
         self.tiff_info = TiffImagePlugin.ImageFileDirectory_v2()
         self.img_path = Path(img_path).resolve()
+        self.mpp = -999
         self._load_img()
 
     @property
@@ -28,22 +30,12 @@ class ReadImage:
         self.sizes = self.scenes.sizes
         # ZEISS_AxioScopeA1: (C, Y, X, S)
         self.machine = "ZEISS_AxioScopeA1" if len(self.dims) <= 4 else "confocal"
-        # if len(self.dims) <= 4:
-        #     self.machine = "ZEISS_AxioScopeA1"
-        #     sizes = {}
-        #     for dim in DEFAULT_DIMS:
-        #         if dim in self.sizes:
-        #             sizes[dim] = self.sizes.get(dim)
-        #         else:
-        #             sizes[dim] = 1
-        #     self.sizes = sizes
-        # else:
-        #     self.machine = "confocal"
         self.tiff_info[256] = self.sizes.get("X") # ImageWidth
         self.tiff_info[257] = self.sizes.get("Y") # ImageLength
         self.tiff_info[282] = 10_000 / self.scenes.mpp[0] # XResolution (pixels per cm)
         self.tiff_info[283] = 10_000 / self.scenes.mpp[1] # YResolution (pixels per cm)
         self.tiff_info[296] = 3  # ResolutionUnit: 1 = none, 2 = inch, 3 = centimeter
+        self.mpp = self.scenes.mpp[0]
         czi.close()
 
     def read_tiff(self):
@@ -61,6 +53,11 @@ class ReadImage:
         self.sizes = {"C": self.channel, "Y": self.height, "X": self.width}
         self.machine = "unknown"
         self.tiff_info = self.scenes.tag_v2
+        resolution_unit = self.tiff_info[296] if self.tiff_info.get(296) is not None else 1
+        if resolution_unit == 1:
+            self.mpp = np.double(1 / self.tiff_info[282])
+        if resolution_unit == 3:
+            self.mpp = np.double(10_000 / self.tiff_info[282])
     
     def read_other_image_type(self):
         self.scenes = Image.open(str(self.img_path)) # default is (height, width, channel)
@@ -88,21 +85,47 @@ class ReadImage:
 
     def get_NBT_arr(self):
         if self.machine == "ZEISS_AxioScopeA1":
-            GRAY = np.mean(self.arr, 3).squeeze()
-            GRAY = convert_to_uint8(GRAY)
+            # (C, Y, X, S) --> 'S' is the RGB channel
+            # RGB = np.mean(self.arr, 0)
+            # GRAY = convert_to_uint8(np.mean(RGB, -1))
+            R = self.arr[0, :, :, 0].astype(np.double)
+            G = self.arr[0, :, :, 1].astype(np.double)
+            B = self.arr[0, :, :, 2].astype(np.double)
+            RGB = convert_to_uint8(np.stack([R, G, B], axis=2))
+            GRAY = convert_to_uint8((B + B + R + G) / 4)
+            # RGB = np.stack([R, G, B], axis=2)
+            # GRAY = np.mean(self.arr, 3).squeeze()
+            # GRAY = convert_to_uint8(GRAY)
         if self.machine == "confocal":
             gray = self.arr
             if self.sizes.get("C") > 1:
-                gray = np.mean(gray, 2)
+                idx = list(self.sizes).index("C")
+                # gray = np.mean(self.arr, 2, keepdims=True)
+                gray = np.mean(self.arr, 2, keepdims=True)
             if self.sizes.get("S") > 1:
-                gray = np.mean(gray, 6)
+                idx = list(self.sizes).index("S")
+                # gray = np.mean(self.arr, 6, keepdims=True)
+                gray = np.mean(self.arr, idx, keepdims=True)
             GRAY = gray.squeeze()
             GRAY = convert_to_uint8(GRAY)
+            RGB = np.stack([GRAY, GRAY, GRAY], axis=-1)
         if self.machine == "unknown":
-            GRAY = np.mean(gray, 0).squeeze()
-            GRAY = convert_to_uint8(GRAY)
-        # The exported array dimensions are (height, width)
-        return GRAY
+            RGB = self.arr.squeeze()
+            if RGB.ndim == 2:
+                GRAY = convert_to_uint8(RGB)
+                RGB = np.stack([GRAY, GRAY, GRAY], axis=2)
+            elif RGB.ndim == 3:
+                R = self.arr[0, :, :].astype(np.double)
+                G = self.arr[1, :, :].astype(np.double)
+                B = self.arr[2, :, :].astype(np.double)
+                RGB = np.stack([R, G, B], axis=2)
+                GRAY = convert_to_uint8((B + B + R + G) / 4)
+                # GRAY = convert_to_uint8(np.mean(RGB, 0).squeeze())
+                # RGB = np.transpose(RGB, (1, 2, 0))
+            else:
+                return self.arr
+        # The exported array dimensions are (height, width, channel)
+        return convert_to_uint8(RGB), np.bitwise_invert(GRAY)
 
     def get_EdU_arr(self):
         if "Z" not in self.dims or self.machine != "confocal":

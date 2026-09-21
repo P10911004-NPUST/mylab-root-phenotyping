@@ -13,7 +13,7 @@ def EdU(czi_path: str, input_folder_path:str | None = None):
     img = ReadImage(czi_path)
     height = img.sizes.get("Y")
     width = img.sizes.get("X")
-    mpp = round(img.scenes.mpp[0], 2) # micrometer per pixel
+    mpp = round(img.mpp, 2) # micrometer per pixel
     EdU, TPMT = img.get_BES_arr() # The BES and EdU procedure is similar
 
     if input_folder_path is None:

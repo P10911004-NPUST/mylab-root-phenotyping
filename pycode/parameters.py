@@ -23,3 +23,16 @@ IMG_TYPE = {
     ".bmp": "bmp"
 }
 
+def NBT_output_dict():
+    out = {
+        "img_dirname": None,
+        "img_basename": None,
+        "width (pixels)": -999,
+        "height (pixels)": -999,
+        "um/pixel": -999.0,
+        "nbt_area": -999,
+        "nbt_mean": -999.0,
+        "nbt_total": -999,
+        "note": "ok"
+    }
+    return out

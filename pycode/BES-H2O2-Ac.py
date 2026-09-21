@@ -16,7 +16,7 @@ def BES_H2O2_Ac(czi_path: str, input_folder_path:str | None = None):
     img = ReadImage(czi_path)
     height = img.sizes.get("Y")
     width = img.sizes.get("X")
-    mpp = round(img.scenes.mpp[0], 2) # micrometer per pixel
+    mpp = round(img.mpp, 2) # micrometer per pixel
     BES, TPMT = img.get_BES_arr()
 
     if input_folder_path is None:
@@ -94,10 +94,10 @@ def BES_H2O2_Ac_multproc(input_folder_path: str, use_cores: int = 3):
     df.to_csv(csv_output_path, index=False)
 
 
-if __name__ == "__main__":
-    input_folder_path = "../test/BES-H2O2-Ac"
+# if __name__ == "__main__":
+#     input_folder_path = "../test/BES-H2O2-Ac"
 
-    input_folder_path = Path(input_folder_path).resolve().as_posix()
-    img_list = get_img_list(input_folder_path)[1:3]
+#     input_folder_path = Path(input_folder_path).resolve().as_posix()
+#     img_list = get_img_list(input_folder_path)[1:3]
 
-    out = BES_H2O2_Ac_multproc(input_folder_path, use_cores)
+#     out = BES_H2O2_Ac_multproc(input_folder_path, use_cores)

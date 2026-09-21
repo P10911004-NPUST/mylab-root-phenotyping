@@ -48,7 +48,7 @@ def RO_index(czi_path: str, input_folder_path: str | None = None):
     try:
         height = img.sizes.get("Y")
         width = img.sizes.get("X")
-        mpp = round(img.scenes.mpp[0], 2) # micrometer per pixel
+        mpp = round(img.mpp, 2) # micrometer per pixel
         E405, E488, PI = img.get_RO_related_arr()
         RO = calc_RO_index(E405, E488)
         LUT = gray_to_lut(RO)
