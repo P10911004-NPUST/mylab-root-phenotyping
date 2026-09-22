@@ -9,7 +9,7 @@ from utils import *
 from read_image import *
 
 DATE_TIME = datetime.now().strftime("%Y%m%d-%H%M%S")
-use_cores = max(1, mp.cpu_count() - 2)
+# use_cores = max(1, mp.cpu_count() - 2)
 
 def BES_H2O2_Ac(czi_path: str, input_folder_path:str | None = None):
     czi_path = Path(czi_path).resolve().as_posix()
@@ -77,7 +77,7 @@ def BES_H2O2_Ac_multproc(input_folder_path: str, use_cores: int = 3):
     img_list = get_img_list(input_folder_path, suffix=".czi")
     img_num = len(img_list)
     use_cores = min(img_num, use_cores)
-    if img_num < 10 or use_cores < 3:
+    if img_num < 5 or use_cores < 3:
         csv_output = []
         for img in img_list:
             csv_output.append(BES_H2O2_Ac(img, input_folder_path))
@@ -100,4 +100,4 @@ def BES_H2O2_Ac_multproc(input_folder_path: str, use_cores: int = 3):
 #     input_folder_path = Path(input_folder_path).resolve().as_posix()
 #     img_list = get_img_list(input_folder_path)[1:3]
 
-#     out = BES_H2O2_Ac_multproc(input_folder_path, use_cores)
+#     out = BES_H2O2_Ac_multproc(input_folder_path, 10)

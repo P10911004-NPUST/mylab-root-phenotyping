@@ -7,7 +7,7 @@ from utils import *
 from read_image import *
 
 DATE_TIME = datetime.now().strftime("%Y%m%d-%H%M%S")
-use_cores = max(1, mp.cpu_count() - 2)
+# use_cores = max(1, mp.cpu_count() - 2)
 
 def percentile_filter(arr: np.ndarray, perc: tuple = (0, 99)):
     # Discard saturated pixels, especially the root cap
@@ -71,6 +71,7 @@ def RO_index(czi_path: str, input_folder_path: str | None = None):
         if PI is not None:
             PI_folder_path = os.path.join(output_folder_path, "PI")
             PI_img_path = czi_path.replace(input_folder_path, PI_folder_path)
+            PI = np.stack([PI, PI * 0, PI * 0], axis=2)
             export_tiff(PI, PI_img_path, img.tiff_info)
         # Reduced-Oxidized index
         RO_folder_path = os.path.join(output_folder_path, "RO")
@@ -134,4 +135,4 @@ def RO_index_multproc(input_folder_path: str, use_cores: int = 3):
 #     input_folder_path = Path(input_folder_path).resolve().as_posix()
 #     img_list = get_img_list(input_folder_path)
 
-#     out = RO_index_multproc(input_folder_path, use_cores)
+#     out = RO_index_multproc(input_folder_path, 10)

@@ -88,7 +88,7 @@ def NBT(img_path: str, input_folder_path: str | None = None, sensitivity: int = 
         # So this part needs to be further tested and optimized.
         sensitivity = min(max(2, 5 - sensitivity), 5)
         threshold = sk.filters.threshold_multiotsu(GRAY_small, classes=sensitivity)
-        ROI = GRAY_small >= np.median(threshold)
+        ROI = GRAY_small >= min(threshold)
         
         for _ in range(3):
             ROI = sk.morphology.opening(ROI, kernel)
@@ -177,11 +177,11 @@ def NBT_multproc(input_folder_path: str, use_cores: int = 3):
 # tiff_path = "../test/NBT/ath_nbt_01.tif"
 # png_path = "../test/NBT/rice_nbt_gray.png"
 
-# if __name__ == "__main__":
-#     input_folder_path = "C:/jklai/project/Ath_NBT_CV-system/img/czi/testing"
+if __name__ == "__main__":
+    input_folder_path = "C:/jklai/project/Ath_NBT_CV-system/img/czi/testing"
 
-#     input_folder_path = Path(input_folder_path).resolve().as_posix()
-#     img_list = get_img_list(input_folder_path)
+    input_folder_path = Path(input_folder_path).resolve().as_posix()
+    img_list = get_img_list(input_folder_path)
 
-#     out = NBT_multproc(input_folder_path, 15)
+    out = NBT_multproc(input_folder_path, 15)
 

@@ -131,6 +131,7 @@ class ReadImage:
         if "Z" not in self.dims or self.machine != "confocal":
             raise ValueError("Z-stack is required for the EdU protocol.")
         GRAY = np.max(self.arr, axis=self.dims.index("Z")).squeeze()
+        GRAY = GRAY * (GRAY > 10)
         GRAY = convert_to_uint8(GRAY)
         # The exported array dimensions are (height, width)
         return GRAY

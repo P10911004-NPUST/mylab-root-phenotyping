@@ -2,12 +2,13 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
+import skimage as sk
 
 from utils import *
 from read_image import *
 
 DATE_TIME = datetime.now().strftime("%Y%m%d-%H%M%S")
-use_cores = max(1, mp.cpu_count() - 2)
+# use_cores = max(1, mp.cpu_count() - 2)
 
 def EdU(czi_path: str, input_folder_path:str | None = None):
     img = ReadImage(czi_path)
@@ -15,6 +16,9 @@ def EdU(czi_path: str, input_folder_path:str | None = None):
     width = img.sizes.get("X")
     mpp = round(img.mpp, 2) # micrometer per pixel
     EdU, TPMT = img.get_BES_arr() # The BES and EdU procedure is similar
+
+    threshold = sk.filters.threshold_multiotsu(EdU, classes=3)
+    EdU = EdU * (EdU >= min(threshold))
 
     if input_folder_path is None:
         input_folder_path = Path(czi_path).resolve().parent.as_posix()
@@ -37,14 +41,16 @@ def EdU(czi_path: str, input_folder_path:str | None = None):
         TPMT, mask = extract_root_region(TPMT)
         EdU = np.multiply(EdU, mask)
 
-    if EdU.max() == 0:
+    if np.std(EdU) == 0:
         edu_total = 0
         edu_area = 0
         edu_mean = 0
+        note = "failed"
     else:
         edu_total = EdU.sum()
         edu_area = np.sum(EdU > 0)
         edu_mean = round(edu_total / edu_area, 4)
+        note = "ok"
 
     return {
         "img_dirname": img.img_path.parent.as_posix(),
@@ -58,7 +64,7 @@ def EdU(czi_path: str, input_folder_path:str | None = None):
         "BES_mean": edu_mean,
         "BES_total": edu_total,
         "distance_pixels": -999,
-        "note": "ok"
+        "note": note
     }
 
 
@@ -67,7 +73,7 @@ def EdU_multproc(input_folder_path: str, use_cores: int = 3):
     img_list = get_img_list(input_folder_path, suffix=".czi")
     img_num = len(img_list)
     use_cores = min(img_num, use_cores)
-    if img_num < 10 or use_cores < 3:
+    if img_num < 7 or use_cores < 3:
         csv_output = []
         for img in img_list:
             csv_output.append(EdU(img, input_folder_path))
@@ -90,4 +96,4 @@ def EdU_multproc(input_folder_path: str, use_cores: int = 3):
 #     input_folder_path = Path(input_folder_path).resolve().as_posix()
 #     img_list = get_img_list(input_folder_path)[1:3]
 
-#     out = EdU_multproc(input_folder_path, use_cores)
+#     out = EdU_multproc(input_folder_path, 10)
